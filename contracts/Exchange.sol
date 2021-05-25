@@ -12,23 +12,88 @@ contract Exchange is ERC20 {
     IERC20 baseToken;
     IERC20 token;
 
-    constructor(IERC20 _baseToken, IERC20 _token, uint256 initialBaseTokenAmount, uint256 initialTokenAmount) ERC20("Gold", "GLD") {
+    constructor(
+        IERC20 _baseToken,
+        IERC20 _token,
+        uint256 initialBaseTokenAmount,
+        uint256 initialTokenAmount,
+        string memory name,
+        string memory symbol
+    ) ERC20(name, symbol) {
         token = _token;
         baseToken = _baseToken;
-        baseToken.safeTransferFrom(msg.sender, address(this), initialBaseTokenAmount);
+        baseToken.safeTransferFrom(
+            msg.sender,
+            address(this),
+            initialBaseTokenAmount
+        );
         token.safeTransferFrom(msg.sender, address(this), initialTokenAmount);
+        _mint(msg.sender, initialTokenAmount);
     }
 
     function addLiquidity(uint256 inputAmount) public {
-        token.safeTransferFrom(
+        _mint(
             msg.sender,
-            address(this),
-            inputAmount
+            proportionOf(
+                inputAmount,
+                totalSupply(),
+                token.balanceOf(address(this))
+            )
         );
         baseToken.safeTransferFrom(
             msg.sender,
             address(this),
-            inputAmount
+            proportionOf(
+                inputAmount,
+                baseToken.balanceOf(address(this)),
+                token.balanceOf(address(this))
+            )
+        );
+        token.safeTransferFrom(msg.sender, address(this), inputAmount);
+    }
+
+    function removeLiquidity(uint256 percentageToBurn) public {
+        /*         console.log("1"); */
+        /*         console.log("%s",balanceOf(msg.sender)); */
+        /*         console.log("%s", */
+        /*                 proportionOf( */
+        /*                     balanceOf(msg.sender), */
+        /*                     percentageToBurn, */
+        /*                     1 ether */
+        /*                 ) */
+        /* ); */
+        /*         console.log("%s", */
+        /*             proportionOf( */
+        /*                 baseToken.balanceOf(address(this)), */
+        /*                 proportionOf( */
+        /*                     balanceOf(msg.sender), */
+        /*                     percentageToBurn, */
+        /*                     1 ether */
+        /*                 ), */
+        /*                 totalSupply() */
+        /*             ) */
+        /* ); */
+        baseToken.safeTransfer(
+            msg.sender,
+            proportionOf(
+                baseToken.balanceOf(address(this)),
+                proportionOf(balanceOf(msg.sender), percentageToBurn, 1 ether),
+                totalSupply()
+            )
+        );
+        /* console.log("2"); */
+        token.safeTransfer(
+            msg.sender,
+            proportionOf(
+                token.balanceOf(address(this)),
+                proportionOf(balanceOf(msg.sender), percentageToBurn, 1 ether),
+                totalSupply()
+            )
+        );
+        /* console.log("3"); */
+        _burn(
+            msg.sender,
+            proportionOf(totalSupply(), percentageToBurn, 1 ether)
         );
     }
 
@@ -41,11 +106,7 @@ contract Exchange is ERC20 {
                 inputAmount - getFee(inputAmount)
             )
         );
-        baseToken.safeTransferFrom(
-            msg.sender,
-            address(this),
-            inputAmount
-        );
+        baseToken.safeTransferFrom(msg.sender, address(this), inputAmount);
     }
 
     function sell(uint256 inputAmount) public {
@@ -57,11 +118,7 @@ contract Exchange is ERC20 {
                 inputAmount - getFee(inputAmount)
             )
         );
-        token.safeTransferFrom(
-            msg.sender,
-            address(this),
-            inputAmount
-        );
+        token.safeTransferFrom(msg.sender, address(this), inputAmount);
     }
 
     function calculateOutputAmount(
