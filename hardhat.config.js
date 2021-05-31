@@ -1,5 +1,14 @@
+require("@nomiclabs/hardhat-etherscan");
 require("@nomiclabs/hardhat-waffle");
+require('dotenv').config();
+const ethers = require("ethers")
+const {utils: {arrayify}} = ethers
 
+const {
+    ALCHEMY_API_KEY,
+    ROPSTEN_PRIVATE_KEY,
+    MAINNET_PRIVATE_KEY,
+} = process.env
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
 task("accounts", "Prints the list of accounts", async () => {
@@ -17,6 +26,29 @@ task("accounts", "Prints the list of accounts", async () => {
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-  solidity: "0.8.0",
+  // networks: {
+  //   ropsten: {
+  //     url: `https://eth-ropsten.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
+  //     accounts: [arrayify(ROPSTEN_PRIVATE_KEY)]
+  //   }
+  // },
+  networks: {
+    ropsten: {
+      url: `https://eth-ropsten.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
+      accounts: [ROPSTEN_PRIVATE_KEY]
+    }
+  },
+  etherscan: {
+    url: "https://api-kovan.etherscan.io/api",
+    apiKey: "5GX8KUJB3RBPNIMT6VPY44T3NYJXWJIEHT",
+  },
+  solidity: {
+    version: "0.8.4",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 1000
+      }
+    }
+  }
 };
-
