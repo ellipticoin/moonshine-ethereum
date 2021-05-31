@@ -9,6 +9,7 @@ contract Router {
     using SafeERC20 for IERC20;
     IERC20 baseToken;
     Pool[] public pools;
+    mapping(Pool => uint112) public baseTokenBalances;
 
     constructor(IERC20 _baseToken) {
         baseToken = _baseToken;
@@ -19,22 +20,28 @@ contract Router {
         Pool outputPool,
         uint256 inputAmount
     ) public {
-        uint256 outputAmount = calculateOutputAmount(
-            inputPool.token().balanceOf(address(inputPool)),
-            baseToken.balanceOf(address(inputPool)),
-            inputAmount - getFee(inputPool, inputAmount)
+        uint256 outputAmount =
+            calculateOutputAmount(
+                inputPool.token().balanceOf(address(inputPool)),
+                baseTokenBalances[inputPool],
+                inputAmount - getFee(inputPool, inputAmount)
+            );
+        inputPool.token().safeTransferFrom(
+            msg.sender,
+            address(this),
+            inputAmount
         );
-        inputPool.token().safeTransferFrom(msg.sender, address(this), inputAmount);
         outputPool.safeTransfer(
             outputPool.token(),
             msg.sender,
             calculateOutputAmount(
-                baseToken.balanceOf(address(outputPool)),
+                baseTokenBalances[outputPool],
                 outputPool.token().balanceOf(address(outputPool)),
                 outputAmount - getFee(outputPool, outputAmount)
             )
         );
-        inputPool.safeTransfer(baseToken, address(outputPool), outputAmount);
+        baseTokenBalances[inputPool] -= uint112(outputAmount);
+        baseTokenBalances[outputPool] += uint112(outputAmount);
     }
 
     function createPool(
@@ -46,15 +53,13 @@ contract Router {
         string memory symbol
     ) public {
         Pool pool = new Pool(baseToken, token, liquidityFee, name, symbol);
-        require(pool.token().balanceOf(address(this)) == 0);
-        token.approve(address(pool), type(uint256).max);
         baseToken.approve(address(pool), type(uint256).max);
         baseToken.safeTransferFrom(
             msg.sender,
             address(this),
             initialBaseTokenAmount
         );
-        baseToken.safeTransfer(address(pool), initialBaseTokenAmount);
+        baseTokenBalances[pool] += uint112(initialBaseTokenAmount);
         pool.token().safeTransferFrom(
             msg.sender,
             address(this),
@@ -74,40 +79,34 @@ contract Router {
                 pool.token().balanceOf(address(pool))
             )
         );
+        uint256 baseTokenToAdd =
+            proportionOf(
+                inputAmount,
+                baseTokenBalances[pool],
+                pool.token().balanceOf(address(pool))
+            );
+        baseTokenBalances[pool] += uint112(baseTokenToAdd);
         baseToken.safeTransferFrom(
             msg.sender,
             address(this),
-            proportionOf(
-                inputAmount,
-                baseToken.balanceOf(address(pool)),
-                pool.token().balanceOf(address(pool))
-            )
-        );
-        baseToken.safeTransfer(
-            address(pool),
-            proportionOf(
-                inputAmount,
-                baseToken.balanceOf(address(pool)),
-                pool.token().balanceOf(address(pool))
-            )
+            baseTokenToAdd
         );
         pool.token().safeTransferFrom(msg.sender, address(pool), inputAmount);
     }
 
     function removeLiquidity(Pool pool, uint256 percentageToBurn) public {
-        pool.safeTransfer(
-            baseToken,
-            msg.sender,
+        uint256 baseTokenToRemove =
             proportionOf(
-                baseToken.balanceOf(address(pool)),
+                baseTokenBalances[pool],
                 proportionOf(
                     pool.balanceOf(msg.sender),
                     percentageToBurn,
                     1 ether
                 ),
                 pool.totalSupply()
-            )
-        );
+            );
+        baseTokenBalances[pool] -= uint112(baseTokenToRemove);
+        baseToken.safeTransfer(msg.sender, baseTokenToRemove);
         pool.safeTransfer(
             pool.token(),
             msg.sender,
@@ -132,23 +131,25 @@ contract Router {
             pool.token(),
             msg.sender,
             calculateOutputAmount(
-                baseToken.balanceOf(address(pool)),
+                baseTokenBalances[pool],
                 pool.token().balanceOf(address(pool)),
                 inputAmount - getFee(pool, inputAmount)
             )
         );
-        baseToken.safeTransferFrom(msg.sender, address(pool), inputAmount);
+        baseToken.safeTransferFrom(msg.sender, address(this), inputAmount);
+        baseTokenBalances[pool] += uint112(inputAmount);
     }
 
-    function sell(Pool pool, uint256 inputAmount)
-        public {
-        pool.safeTransfer(baseToken, msg.sender, 
-calculateOutputAmount(
-            pool.token().balanceOf(address(pool)),
-            baseToken.balanceOf(address(pool)),
-            inputAmount - getFee(pool, inputAmount)
-        )
-);
+    function sell(Pool pool, uint256 inputAmount) public {
+        baseToken.safeTransfer(
+            msg.sender,
+            calculateOutputAmount(
+                pool.token().balanceOf(address(pool)),
+                baseTokenBalances[pool],
+                inputAmount - getFee(pool, inputAmount)
+            )
+        );
+        baseTokenBalances[pool] += uint112(inputAmount);
         pool.token().safeTransferFrom(msg.sender, address(this), inputAmount);
     }
 
@@ -157,10 +158,10 @@ calculateOutputAmount(
         uint256 outputSupply,
         uint256 inputAmount
     ) internal pure returns (uint256) {
-        uint256 newInputSupply = inputSupply + inputAmount;
-        uint256 invariant = inputSupply * outputSupply;
-        uint256 newOutputSupply = invariant / newInputSupply;
-        return outputSupply - newOutputSupply;
+        return
+            outputSupply -
+            (inputSupply * outputSupply) /
+            (inputSupply + inputAmount);
     }
 
     function proportionOf(

@@ -39,51 +39,6 @@ describe("Router", function () {
     await usd.connect(bob).approve(router.address, MaxUint256);
     await apples.connect(bob).approve(router.address, MaxUint256);
     await bananas.connect(bob).approve(router.address, MaxUint256);
-    // const Pool = await ethers.getContractFactory("Pool");
-    // pool = await Pool.deploy(
-    //   usd.address,
-    //   apples.address,
-    //   parseUnits("0.003"),
-    //   "Apple Liquidity Token",
-    //   "MSXAPPLE"
-    // );
-    // await pool.deployed();
-    // await usd.approve(pool.address, MaxUint256);
-    // await apples.approve(pool.address, MaxUint256);
-    // await bananas.approve(pool.address, MaxUint256);
-    // await usd.connect(bob).approve(pool.address, MaxUint256);
-    // await apples.connect(bob).approve(pool.address, MaxUint256);
-    // await bananas.connect(bob).approve(pool.address, MaxUint256);
-    // signers = await ethers.getSigners();
-    // [alice, bob] = signers;
-    // const Router = await ethers.getContractFactory("Router");
-    // const MockERC20 = await ethers.getContractFactory("ERC20Mock");
-    // usd = await MockERC20.deploy(
-    //   "US Dollars",
-    //   "USD",
-    //   await alice.getAddress(),
-    //   0
-    // );
-    // apples = await MockERC20.deploy(
-    //   "Apples",
-    //   "APPLES",
-    //   await alice.getAddress(),
-    //   0
-    // );
-    // bananas = await MockERC20.deploy(
-    //   "Bananas",
-    //   "BANANAS",
-    //   await alice.getAddress(),
-    //   0
-    // );
-    // router = await Router.deploy(usd.address);
-    // await router.deployed();
-    // await usd.approve(router.address, MaxUint256);
-    // await apples.approve(router.address, MaxUint256);
-    // await bananas.approve(router.address, MaxUint256);
-    // await usd.connect(bob).approve(router.address, MaxUint256);
-    // await apples.connect(bob).approve(router.address, MaxUint256);
-    // await bananas.connect(bob).approve(router.address, MaxUint256);
   });
 
   it("convert", async function () {
@@ -201,7 +156,7 @@ describe("Router", function () {
     await apples.mint(await alice.getAddress(), parseUnits("100"));
     await usd.mint(await alice.getAddress(), parseUnits("100"));
     await router.addLiquidity(applePool.address, parseUnits("100"));
-    expect(await usd.balanceOf(applePool.address)).to.eq(parseUnits("200"));
+    expect(await router.baseTokenBalances(applePool.address)).to.eq(parseUnits("200"));
     expect(await apples.balanceOf(applePool.address)).to.eq(parseUnits("200"));
     expect(await applePool.balanceOf(await alice.getAddress())).to.eq(
       parseUnits("200")
@@ -230,7 +185,7 @@ describe("Router", function () {
     expect(await applePool.balanceOf(await alice.getAddress())).to.eq(
       parseUnits("50")
     );
-    expect(await usd.balanceOf(applePool.address)).to.eq(parseUnits("50"));
+    expect(await router.baseTokenBalances(applePool.address)).to.eq(parseUnits("50"));
     expect(await apples.balanceOf(applePool.address)).to.eq(parseUnits("50"));
     expect(await usd.balanceOf(await alice.getAddress())).to.eq(
       parseUnits("50")
