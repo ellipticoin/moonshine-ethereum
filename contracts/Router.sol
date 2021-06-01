@@ -10,6 +10,7 @@ contract Router {
     IERC20 baseToken;
     Pool[] public pools;
     mapping(Pool => uint112) public baseTokenBalances;
+    mapping(Pool => uint256) public tokenBalances;
 
     constructor(IERC20 _baseToken) {
         baseToken = _baseToken;
@@ -20,28 +21,26 @@ contract Router {
         Pool outputPool,
         uint256 inputAmount
     ) public {
+        uint256 gasBefore = gasleft();
+        uint256 baseTokenAmount =
+            calculateOutputAmount(
+                inputPool,
+                tokenBalances[inputPool],
+                baseTokenBalances[inputPool],
+                inputAmount
+            );
+        chargeToken(inputPool, inputAmount);
         uint256 outputAmount =
             calculateOutputAmount(
-                inputPool.token().balanceOf(address(inputPool)),
-                baseTokenBalances[inputPool],
-                inputAmount - getFee(inputPool, inputAmount)
-            );
-        inputPool.token().safeTransferFrom(
-            msg.sender,
-            address(this),
-            inputAmount
-        );
-        outputPool.safeTransfer(
-            outputPool.token(),
-            msg.sender,
-            calculateOutputAmount(
+                outputPool,
                 baseTokenBalances[outputPool],
-                outputPool.token().balanceOf(address(outputPool)),
-                outputAmount - getFee(outputPool, outputAmount)
-            )
-        );
-        baseTokenBalances[inputPool] -= uint112(outputAmount);
-        baseTokenBalances[outputPool] += uint112(outputAmount);
+                tokenBalances[outputPool],
+                baseTokenAmount
+            );
+        payToken(outputPool, outputAmount);
+        baseTokenBalances[inputPool] -= uint112(baseTokenAmount);
+        baseTokenBalances[outputPool] += uint112(baseTokenAmount);
+        console.log("%s", gasBefore - gasleft());
     }
 
     function createPool(
@@ -53,19 +52,8 @@ contract Router {
         string memory symbol
     ) public {
         Pool pool = new Pool(baseToken, token, liquidityFee, name, symbol);
-        baseToken.approve(address(pool), type(uint256).max);
-        baseToken.safeTransferFrom(
-            msg.sender,
-            address(this),
-            initialBaseTokenAmount
-        );
-        baseTokenBalances[pool] += uint112(initialBaseTokenAmount);
-        pool.token().safeTransferFrom(
-            msg.sender,
-            address(this),
-            initialTokenAmount
-        );
-        pool.token().safeTransfer(address(pool), initialTokenAmount);
+        chargeBaseToken(pool, initialBaseTokenAmount);
+        chargeToken(pool, initialTokenAmount);
         pool.mint(msg.sender, initialTokenAmount);
         pools.push(pool);
     }
@@ -73,25 +61,16 @@ contract Router {
     function addLiquidity(Pool pool, uint256 inputAmount) public {
         pool.mint(
             msg.sender,
-            proportionOf(
-                inputAmount,
-                pool.totalSupply(),
-                pool.token().balanceOf(address(pool))
-            )
+            proportionOf(inputAmount, pool.totalSupply(), tokenBalances[pool])
         );
         uint256 baseTokenToAdd =
             proportionOf(
                 inputAmount,
                 baseTokenBalances[pool],
-                pool.token().balanceOf(address(pool))
+                tokenBalances[pool]
             );
-        baseTokenBalances[pool] += uint112(baseTokenToAdd);
-        baseToken.safeTransferFrom(
-            msg.sender,
-            address(this),
-            baseTokenToAdd
-        );
-        pool.token().safeTransferFrom(msg.sender, address(pool), inputAmount);
+        chargeBaseToken(pool, baseTokenToAdd);
+        chargeToken(pool, inputAmount);
     }
 
     function removeLiquidity(Pool pool, uint256 percentageToBurn) public {
@@ -105,21 +84,20 @@ contract Router {
                 ),
                 pool.totalSupply()
             );
-        baseTokenBalances[pool] -= uint112(baseTokenToRemove);
-        baseToken.safeTransfer(msg.sender, baseTokenToRemove);
-        pool.safeTransfer(
-            pool.token(),
-            msg.sender,
+        payBaseToken(pool, baseTokenToRemove);
+        uint256 tokenToRemove =
             proportionOf(
-                pool.token().balanceOf(address(pool)),
+                tokenBalances[pool],
                 proportionOf(
                     pool.balanceOf(msg.sender),
                     percentageToBurn,
                     1 ether
                 ),
                 pool.totalSupply()
-            )
-        );
+            );
+        payToken(pool, tokenToRemove);
+        /* pool.token().safeTransfer(msg.sender, tokenToRemove); */
+        /* tokenBalances[pool] -= tokenToRemove; */
         pool.burn(
             msg.sender,
             proportionOf(pool.balanceOf(msg.sender), percentageToBurn, 1 ether)
@@ -127,41 +105,64 @@ contract Router {
     }
 
     function buy(Pool pool, uint256 inputAmount) public {
-        pool.safeTransfer(
-            pool.token(),
-            msg.sender,
+        payToken(
+            pool,
             calculateOutputAmount(
+                pool,
                 baseTokenBalances[pool],
-                pool.token().balanceOf(address(pool)),
-                inputAmount - getFee(pool, inputAmount)
+                tokenBalances[pool],
+                inputAmount
             )
         );
-        baseToken.safeTransferFrom(msg.sender, address(this), inputAmount);
-        baseTokenBalances[pool] += uint112(inputAmount);
+        chargeBaseToken(pool, inputAmount);
+    }
+
+    function payToken(Pool pool, uint256 amount) public {
+        pool.token().safeTransfer(msg.sender, amount);
+        tokenBalances[pool] -= amount;
+    }
+
+    function chargeToken(Pool pool, uint256 amount) public {
+        pool.token().safeTransferFrom(msg.sender, address(this), amount);
+        tokenBalances[pool] += amount;
+    }
+
+    function payBaseToken(Pool pool, uint256 amount) public {
+        baseTokenBalances[pool] -= uint112(amount);
+        baseToken.safeTransfer(msg.sender, amount);
+    }
+
+    function chargeBaseToken(Pool pool, uint256 amount) public {
+        baseToken.safeTransferFrom(msg.sender, address(this), amount);
+        baseTokenBalances[pool] += uint112(amount);
     }
 
     function sell(Pool pool, uint256 inputAmount) public {
         baseToken.safeTransfer(
             msg.sender,
             calculateOutputAmount(
-                pool.token().balanceOf(address(pool)),
+                pool,
+                tokenBalances[pool],
                 baseTokenBalances[pool],
-                inputAmount - getFee(pool, inputAmount)
+                inputAmount
             )
         );
         baseTokenBalances[pool] += uint112(inputAmount);
         pool.token().safeTransferFrom(msg.sender, address(this), inputAmount);
+        tokenBalances[pool] -= inputAmount;
     }
 
     function calculateOutputAmount(
+        Pool pool,
         uint256 inputSupply,
         uint256 outputSupply,
         uint256 inputAmount
-    ) internal pure returns (uint256) {
+    ) internal view returns (uint256) {
         return
             outputSupply -
             (inputSupply * outputSupply) /
-            (inputSupply + inputAmount);
+            (inputSupply +
+                (inputAmount - (inputAmount * pool.liquidityFee()) / 1 ether));
     }
 
     function proportionOf(
@@ -170,10 +171,5 @@ contract Router {
         uint256 y
     ) internal pure returns (uint256) {
         return ((value * x) / y);
-    }
-
-    function getFee(Pool pool, uint256 amount) internal view returns (uint256) {
-        uint256 fee = (amount * pool.liquidityFee()) / 1 ether;
-        return fee == 0 ? 1 : fee;
     }
 }

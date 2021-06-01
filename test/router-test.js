@@ -156,8 +156,10 @@ describe("Router", function () {
     await apples.mint(await alice.getAddress(), parseUnits("100"));
     await usd.mint(await alice.getAddress(), parseUnits("100"));
     await router.addLiquidity(applePool.address, parseUnits("100"));
-    expect(await router.baseTokenBalances(applePool.address)).to.eq(parseUnits("200"));
-    expect(await apples.balanceOf(applePool.address)).to.eq(parseUnits("200"));
+    expect(await router.baseTokenBalances(applePool.address)).to.eq(
+      parseUnits("200")
+    );
+    expect(await apples.balanceOf(router.address)).to.eq(parseUnits("200"));
     expect(await applePool.balanceOf(await alice.getAddress())).to.eq(
       parseUnits("200")
     );
@@ -185,8 +187,10 @@ describe("Router", function () {
     expect(await applePool.balanceOf(await alice.getAddress())).to.eq(
       parseUnits("50")
     );
-    expect(await router.baseTokenBalances(applePool.address)).to.eq(parseUnits("50"));
-    expect(await apples.balanceOf(applePool.address)).to.eq(parseUnits("50"));
+    expect(await router.baseTokenBalances(applePool.address)).to.eq(
+      parseUnits("50")
+    );
+    expect(await apples.balanceOf(router.address)).to.eq(parseUnits("50"));
     expect(await usd.balanceOf(await alice.getAddress())).to.eq(
       parseUnits("50")
     );
