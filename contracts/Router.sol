@@ -21,7 +21,6 @@ contract Router {
         Pool outputPool,
         uint256 inputAmount
     ) public {
-        uint256 gasBefore = gasleft();
         uint256 baseTokenAmount =
             calculateOutputAmount(
                 inputPool,
@@ -30,17 +29,17 @@ contract Router {
                 inputAmount
             );
         chargeToken(inputPool, inputAmount);
-        uint256 outputAmount =
+        payToken(
+            outputPool,
             calculateOutputAmount(
                 outputPool,
                 baseTokenBalances[outputPool],
                 tokenBalances[outputPool],
                 baseTokenAmount
-            );
-        payToken(outputPool, outputAmount);
+            )
+        );
         baseTokenBalances[inputPool] -= uint112(baseTokenAmount);
         baseTokenBalances[outputPool] += uint112(baseTokenAmount);
-        console.log("%s", gasBefore - gasleft());
     }
 
     function createPool(
@@ -63,13 +62,14 @@ contract Router {
             msg.sender,
             proportionOf(inputAmount, pool.totalSupply(), tokenBalances[pool])
         );
-        uint256 baseTokenToAdd =
+        chargeBaseToken(
+            pool,
             proportionOf(
                 inputAmount,
                 baseTokenBalances[pool],
                 tokenBalances[pool]
-            );
-        chargeBaseToken(pool, baseTokenToAdd);
+            )
+        );
         chargeToken(pool, inputAmount);
     }
 
@@ -172,4 +172,9 @@ contract Router {
     ) internal pure returns (uint256) {
         return ((value * x) / y);
     }
+
+    function getPoolsLength() public view returns (uint256) {
+        return pools.length;
+    }
+
 }
