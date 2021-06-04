@@ -6,6 +6,7 @@ const {utils: {arrayify}} = ethers
 
 const {
     ALCHEMY_API_KEY,
+    GANACHE_PRIVATE_KEY,
     ROPSTEN_PRIVATE_KEY,
     MAINNET_PRIVATE_KEY,
 } = process.env
@@ -33,14 +34,26 @@ module.exports = {
   //   }
   // },
   networks: {
-    ropsten: {
-      url: `https://eth-ropsten.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
-      accounts: [ROPSTEN_PRIVATE_KEY]
+    ganache: {
+      url: `http://127.0.0.1:8545`,
+      accounts: [GANACHE_PRIVATE_KEY]
     },
     goerli: {
       url: `https://eth-goerli.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
       accounts: [ROPSTEN_PRIVATE_KEY]
-    }
+    },
+    kovan: {
+      url: `https://eth-kovan.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
+      accounts: [ROPSTEN_PRIVATE_KEY]
+    },
+    ropsten: {
+      url: `https://eth-ropsten.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
+      accounts: [ROPSTEN_PRIVATE_KEY]
+    },
+    arbitrum: {
+      url: `https://kovan5.arbitrum.io/rpc`,
+      accounts: [ROPSTEN_PRIVATE_KEY]
+    },
   },
   etherscan: {
     url: "https://api-kovan.etherscan.io/api",

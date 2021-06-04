@@ -8,7 +8,7 @@ const hre = require("hardhat");
 async function main() {
   const Router = await hre.ethers.getContractFactory("Router");
   const router = await Router.deploy(
-    "0xf47c0c1FF7464601FfFb52FBcB0abCa2bd94Bb5A"
+    "0xFD288C066439DE9185f37116F414eaBD8E6d6858"
   );
 
   await router.deployed();

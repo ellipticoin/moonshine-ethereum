@@ -38,8 +38,7 @@ contract Router {
                 baseTokenAmount
             )
         );
-        baseTokenBalances[inputPool] -= uint112(baseTokenAmount);
-        baseTokenBalances[outputPool] += uint112(baseTokenAmount);
+        transferBaseToken(inputPool, outputPool, baseTokenAmount);
     }
 
     function createPool(
@@ -96,8 +95,6 @@ contract Router {
                 pool.totalSupply()
             );
         payToken(pool, tokenToRemove);
-        /* pool.token().safeTransfer(msg.sender, tokenToRemove); */
-        /* tokenBalances[pool] -= tokenToRemove; */
         pool.burn(
             msg.sender,
             proportionOf(pool.balanceOf(msg.sender), percentageToBurn, 1 ether)
@@ -125,6 +122,15 @@ contract Router {
     function chargeToken(Pool pool, uint256 amount) public {
         pool.token().safeTransferFrom(msg.sender, address(this), amount);
         tokenBalances[pool] += amount;
+    }
+
+    function transferBaseToken(
+        Pool inputPool,
+        Pool outputPool,
+        uint256 amount
+    ) public {
+        baseTokenBalances[inputPool] -= uint112(amount);
+        baseTokenBalances[outputPool] += uint112(amount);
     }
 
     function payBaseToken(Pool pool, uint256 amount) public {
@@ -176,5 +182,4 @@ contract Router {
     function getPoolsLength() public view returns (uint256) {
         return pools.length;
     }
-
 }
