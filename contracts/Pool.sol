@@ -11,6 +11,7 @@ contract Pool is ERC20 {
     using SafeERC20 for IERC20;
     IERC20 public baseToken;
     IERC20 public token;
+    mapping(address => uint256) harvested;
     uint256 public immutable liquidityFee;
 
     constructor(
@@ -39,11 +40,15 @@ contract Pool is ERC20 {
         _token.safeTransfer(sender, amount);
     }
 
-    function mint(address sender, uint256 amount) public onlyCreator {
-        _mint(sender, amount);
+    function mint(address to, uint256 amount) public virtual onlyCreator {
+        _mint(to, amount);
     }
 
-    function burn(address sender, uint256 amount) public onlyCreator {
-        _burn(sender, amount);
+    function burn(address who, uint256 amount) public virtual onlyCreator {
+        _burn(who, amount);
+    }
+
+    function isFarmable() public pure virtual returns (bool) {
+        return false;
     }
 }

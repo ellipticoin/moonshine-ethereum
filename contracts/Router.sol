@@ -3,9 +3,13 @@ pragma solidity ^0.8.0;
 
 import "hardhat/console.sol";
 import "./Pool.sol";
+import "./YieldFarmablePool.sol";
+import "./Issuable.sol";
+import "./Subsidizer.sol";
+import "./Refundable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract Router {
+contract Router is Refundable {
     using SafeERC20 for IERC20;
     IERC20 baseToken;
     Pool[] public pools;
@@ -14,6 +18,10 @@ contract Router {
 
     constructor(IERC20 _baseToken) {
         baseToken = _baseToken;
+    }
+
+    function currentBlockTimestamp() public view returns (uint256) {
+        return block.timestamp;
     }
 
     function convert(
@@ -50,6 +58,30 @@ contract Router {
         string memory symbol
     ) public {
         Pool pool = new Pool(baseToken, token, liquidityFee, name, symbol);
+        chargeBaseToken(pool, initialBaseTokenAmount);
+        chargeToken(pool, initialTokenAmount);
+        pool.mint(msg.sender, initialTokenAmount);
+        pools.push(pool);
+    }
+
+    function createYieldFarmablePool(
+        IERC20 token,
+        uint256 liquidityFee,
+        uint256 initialBaseTokenAmount,
+        uint256 initialTokenAmount,
+        string memory name,
+        string memory symbol,
+        Issuable rewardToken
+    ) public {
+        YieldFarmablePool pool =
+            new YieldFarmablePool(
+                baseToken,
+                token,
+                liquidityFee,
+                name,
+                symbol,
+                rewardToken
+            );
         chargeBaseToken(pool, initialBaseTokenAmount);
         chargeToken(pool, initialTokenAmount);
         pool.mint(msg.sender, initialTokenAmount);
@@ -112,6 +144,10 @@ contract Router {
             )
         );
         chargeBaseToken(pool, inputAmount);
+    }
+
+    function buyWithSubsity(Pool pool, uint256 inputAmount, Subsidizer subsidizer) public refundable(subsidizer) {
+        buy(pool, inputAmount);
     }
 
     function payToken(Pool pool, uint256 amount) public {

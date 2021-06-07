@@ -50,8 +50,8 @@ module.exports = {
       url: `https://eth-ropsten.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
       accounts: [ROPSTEN_PRIVATE_KEY]
     },
-    arbitrum: {
-      url: `https://kovan5.arbitrum.io/rpc`,
+    arbRinkeby: {
+      url: `https://rinkeby.arbitrum.io/rpc`,
       accounts: [ROPSTEN_PRIVATE_KEY]
     },
   },

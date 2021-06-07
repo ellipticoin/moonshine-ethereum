@@ -11,7 +11,7 @@ describe("Router", function () {
   beforeEach(async function () {
     signers = await ethers.getSigners();
     [alice, bob] = signers;
-    const MockERC20 = await ethers.getContractFactory("ERC20Mock");
+    const MockERC20 = await ethers.getContractFactory("MockERC20");
     usd = await MockERC20.deploy(
       "US Dollars",
       "USD",
