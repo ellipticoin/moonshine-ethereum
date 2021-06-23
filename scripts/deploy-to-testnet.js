@@ -6,45 +6,59 @@ const {
 
 async function main() {
   signers = await ethers.getSigners();
+  let tx;
+  const WETH_ADDRESS = "0xa859A8E8d95627605e2CfD68A1De8ecB4C1eFf8E";
+  // const WETH_ADDRESS = "0xc778417e063141139fce010982780140aa0cd5ab";
+  const weth = (await hre.ethers.getContractFactory("WETH9")).attach(
+    WETH_ADDRESS
+  );
+  // const WETH9 = await hre.ethers.getContractFactory("WETH9");
+  // const weth = await WETH9.deploy();
+  // await weth.deployed();
+  // const weth = (await hre.ethers.getContractFactory("WETH9")).attach(
+  signers = await ethers.getSigners();
   const MintableERC20 = await hre.ethers.getContractFactory("MintableERC20");
   const usdc = await MintableERC20.deploy("USD Coin", "USDC", 6);
   const msx = await MintableERC20.deploy("Moonshine", "MSX", 6);
   const wbtc = await MintableERC20.deploy("Wrapped Bitcoin", "WBTC", 8);
-
-  await usdc.deployed();
-  await msx.deployed();
-  await wbtc.deployed();
-  console.log("Deployed token contracts");
-  printDevTokenList({
-    msxAddress: msx.address,
-    usdcAddress: usdc.address,
-    wbtcAddress: wbtc.address,
-  });
-  // console.log(`MSX: ${msx.address}`);
-  // console.log(`USDC: ${usdc.address}`);
-  // console.log(`WBTC: ${wbtc.address}`);
-  //
-  await msx.mint(
+  await Promise.all([usdc.deployed(), msx.deployed(), wbtc.deployed()]);
+  const msxMintTx = await msx.mint(
     await signers[0].getAddress(),
     parseUnits("2500", await msx.decimals())
   );
-  await usdc.mint(
+  const usdcMintTx = await usdc.mint(
     await signers[0].getAddress(),
-    parseUnits("2100", await usdc.decimals())
+    parseUnits("2125", await usdc.decimals())
   );
-  await wbtc.mint(
+  const wbtcMintTx = await wbtc.mint(
     await signers[0].getAddress(),
     parseUnits("0.025", await wbtc.decimals())
   );
+  const wethDepositTx = await weth.deposit({ value: parseUnits("0.01") });
+  await [
+    Promise.all([
+      msxMintTx.wait(),
+      usdcMintTx.wait(),
+      wbtcMintTx.wait(),
+      wethDepositTx.wait(),
+    ]),
+  ];
 
   const Router = await hre.ethers.getContractFactory("Router");
   const router = await Router.deploy(usdc.address);
   await router.deployed();
-  await msx.approve(router.address, MaxUint256);
-  await usdc.approve(router.address, MaxUint256);
-  await wbtc.approve(router.address, MaxUint256);
+  const msxApproveTx = await msx.approve(router.address, MaxUint256);
+  const usdcApproveTx = await usdc.approve(router.address, MaxUint256);
+  const wbtcApproveTx = await wbtc.approve(router.address, MaxUint256);
+  const wethApproveTx = await weth.approve(router.address, MaxUint256);
+  await Promise.all([
+    msxApproveTx.wait(),
+    usdcApproveTx.wait(),
+    wbtcApproveTx.wait(),
+    wethApproveTx.wait(),
+  ]);
 
-  await router.createYieldFarmablePool(
+  const createMsxPoolTx = await router.createYieldFarmablePool(
     msx.address,
     parseUnits("0.003"),
     parseUnits("100", await usdc.decimals()),
@@ -53,8 +67,7 @@ async function main() {
     "MSXMSX",
     msx.address
   );
-  console.log(await router.pools(0));
-  await router.createYieldFarmablePool(
+  const createWbtcPoolTx = await router.createYieldFarmablePool(
     wbtc.address,
     parseUnits("0.003"),
     parseUnits("1000", await usdc.decimals()),
@@ -63,8 +76,73 @@ async function main() {
     "MSXWBTC",
     msx.address
   );
+  const createWethPoolTx = await router.createYieldFarmablePool(
+    weth.address,
+    parseUnits("0.003"),
+    parseUnits("25", await usdc.decimals()),
+    parseUnits(".01", await weth.decimals()),
+    "Wrapped Ether Liquidity Token",
+    "MSXWETH",
+    msx.address
+  );
+  await Promise.all([
+    await createWethPoolTx.wait(),
+    await createMsxPoolTx.wait(),
+    await createWbtcPoolTx.wait(),
+  ]);
+  const msxPool = await router.pools(0);
+  const wbtcPool = await router.pools(1);
+  console.log(wbtcPool);
+  const wethPool = await router.pools(2);
 
-  console.log("Router deployed to:", router.address);
+  const FeeSubsidyDrip = await hre.ethers.getContractFactory("FeeSubsidyDrip");
+  const feeSubsidyDrip = await FeeSubsidyDrip.deploy(
+    weth.address,
+    msx.address,
+    router.address,
+    msxPool,
+    wethPool,
+    router.address
+  );
+  await feeSubsidyDrip.deployed();
+  tx = await signers[0].sendTransaction({
+    to: feeSubsidyDrip.address,
+    value: parseUnits(".01"),
+    gasLimit: 3000000,
+  });
+  await tx.wait();
+  // tx = await signers[0].sendTransaction({
+  //   to: "0xAdfe2B5BeAc83382C047d977db1df977FD9a7e41",
+  //   value: parseUnits("1"),
+  //   gasLimit: 3000000,
+  // });
+  // await tx.wait();
+  // await hre.run("verify:verify", {
+  //   address: router.address,
+  //   constructorArguments: [usdc.address],
+  // });
+  // await hre.run("verify:verify", {
+  //   address: feeSubsidyDrip.address,
+  //   constructorArguments: [
+  //     WETH_ADDRESS,
+  //     msx.address,
+  //     router.address,
+  //     msxPool,
+  //     wethPool,
+  //     router.address,
+  //   ],
+  // });
+  printDevTokenList({
+    msxAddress: msx.address,
+    usdcAddress: usdc.address,
+    wbtcAddress: wbtc.address,
+    wethAddress: weth.address,
+  });
+  console.log(`export const ROUTER_ADDRESS = "${router.address}"`);
+  console.log(`export const BASE_TOKEN_ADDRESS = "${usdc.address}"`);
+  console.log(
+    `export const FEE_SUBSIDY_DRIP_ADDRESS = "${feeSubsidyDrip.address}"`
+  );
 }
 
 main()
@@ -74,14 +152,19 @@ main()
     process.exit(1);
   });
 
-function printDevTokenList({ msxAddress, wbtcAddress, usdcAddress }) {
+function printDevTokenList({
+  msxAddress,
+  wbtcAddress,
+  usdcAddress,
+  wethAddress,
+}) {
   console.log(
     JSON.stringify([
       {
         symbol: "Ether",
         logoURI: "https://i.ibb.co/0jBv18b/download.png",
         name: "Ether",
-        address: "0xD25f374A2d7d40566b006eC21D82b9655865F941",
+        address: wethAddress,
       },
       {
         symbol: "MSX",

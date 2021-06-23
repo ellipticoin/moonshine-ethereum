@@ -11,7 +11,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Router is Refundable {
     using SafeERC20 for IERC20;
-    IERC20 baseToken;
+    IERC20 public baseToken;
+    bool public called;
     Pool[] public pools;
     mapping(Pool => uint112) public baseTokenBalances;
     mapping(Pool => uint256) public tokenBalances;
@@ -20,8 +21,26 @@ contract Router is Refundable {
         baseToken = _baseToken;
     }
 
+    function setCalled() public {
+        called = true;
+    }
+
+    function callWithSubsity(Subsidizer subsidizer)
+        public
+        refundable(subsidizer)
+    {}
+
     function currentBlockTimestamp() public view returns (uint256) {
         return block.timestamp;
+    }
+
+    function convertWithSubsity(
+        Pool inputPool,
+        Pool outputPool,
+        uint256 inputAmount,
+        Subsidizer subsidizer
+    ) public refundable(subsidizer) {
+        convert(inputPool, outputPool, inputAmount);
     }
 
     function convert(
@@ -146,7 +165,11 @@ contract Router is Refundable {
         chargeBaseToken(pool, inputAmount);
     }
 
-    function buyWithSubsity(Pool pool, uint256 inputAmount, Subsidizer subsidizer) public refundable(subsidizer) {
+    function buyWithSubsity(
+        Pool pool,
+        uint256 inputAmount,
+        Subsidizer subsidizer
+    ) public refundable(subsidizer) {
         buy(pool, inputAmount);
     }
 
@@ -177,6 +200,14 @@ contract Router is Refundable {
     function chargeBaseToken(Pool pool, uint256 amount) public {
         baseToken.safeTransferFrom(msg.sender, address(this), amount);
         baseTokenBalances[pool] += uint112(amount);
+    }
+
+    function sellWithSubsity(
+        Pool pool,
+        uint256 inputAmount,
+        Subsidizer subsidizer
+    ) public refundable(subsidizer) {
+        sell(pool, inputAmount);
     }
 
     function sell(Pool pool, uint256 inputAmount) public {

@@ -50,6 +50,10 @@ module.exports = {
       url: `https://eth-ropsten.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
       accounts: [ROPSTEN_PRIVATE_KEY]
     },
+    rinkeby: {
+      url: `https://eth-rinkeby.alchemyapi.io/v2/${ALCHEMY_API_KEY}`,
+      accounts: [ROPSTEN_PRIVATE_KEY]
+    },
     arbRinkeby: {
       url: `https://rinkeby.arbitrum.io/rpc`,
       accounts: [ROPSTEN_PRIVATE_KEY]

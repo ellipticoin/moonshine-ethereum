@@ -4,12 +4,13 @@ pragma solidity ^0.8.4;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./Router.sol";
 import "./Issuable.sol";
 import "./WETH9.sol";
 import "./Refundable.sol";
 
-contract Drip is Ownable {
+contract FeeSubsidyDrip is Ownable {
     Router public router;
     Issuable public dripToken;
     Pool public dripTokenPool;
@@ -18,8 +19,8 @@ contract Drip is Ownable {
     address subsidizedContract;
 
     uint256 public lastDrip;
-    uint256 public dripPerSecond = 1 ether;
-    uint256 maxRefund = 0 gwei;
+    uint256 public dripPerSecond = 20000;
+    uint256 public maxRefund = 1 ether;
 
     constructor(
         WETH9 _weth,
@@ -51,13 +52,24 @@ contract Drip is Ownable {
         return block.timestamp - lastDrip;
     }
 
-    function refund(address payable to, uint256 amount) public {
+    function getSubsidizedContract() public view returns (address) {
+        return subsidizedContract;
+    }
+
+    function refund(uint256 amount) public {
         require(msg.sender == subsidizedContract);
-        if (amount >= maxRefund) { 
-            to.transfer(maxRefund);
+
+        if (amount > maxRefund) {
+            transfer(tx.origin, maxRefund);
         } else {
-            to.transfer(amount);
+            transfer(tx.origin, amount);
         }
+    }
+
+    function transfer(address to, uint256 amount) internal {
+        (bool success, ) =
+            to.call{value: Math.min(amount, address(this).balance)}("");
+        require(success);
     }
 
     function setMaxRefund(uint256 _maxRefund) public onlyOwner {
@@ -67,7 +79,6 @@ contract Drip is Ownable {
     function setDripPerSecond(uint256 _dripPerSecond) public onlyOwner {
         dripPerSecond = _dripPerSecond;
     }
-
 
     receive() external payable {}
 

@@ -18,7 +18,7 @@ contract YieldFarmablePool is YieldFarmable, Pool {
     {}
 
     function yieldPerSecond() public view virtual override returns (uint256) {
-        return 160000;
+        return 150000;
     }
 
     function mint(address to, uint256 amount)
